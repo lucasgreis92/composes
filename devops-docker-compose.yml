@@ -1,0 +1,96 @@
+version: '3.6'
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    user: jenkins
+    privileged: true
+    container_name: jenkins
+    ports:
+      - '8082:8080'
+      - '50000:50000'
+    volumes:
+      - '/apps/jenkins/jenkins_home:/var/jenkins_home'
+      - '/root/.m2/settings.xml:/var/settings.xml'
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      - '/usr/bin/docker:/usr/local/bin/docker'
+    networks:
+      - lgrapplications-network
+
+
+  iq-server:
+    volumes:
+      - /apps/iq-server/sonatype-work:/sonatype-work
+    ports:
+      - "8070:8070"
+      - "8071:8071"
+    image: sonatype/nexus-iq-server:1.43.0
+    container_name: iq-server
+
+  nexus:
+    volumes:
+      - /apps/nexus/nexus-data:/nexus-data
+      - /apps/nexus/sonatype-work:/sonatype-work
+    ports:
+      - "8081:8081"
+      - "18443:18443"
+      - "5000:5000"
+    image: bradbeck/nexus-https:3.8.0
+    links:
+      - iq-server
+    container_name: nexus3
+    networks:
+      - lgrapplications-network
+
+
+  gitlab:
+    image: 'gitlab/gitlab-ce:latest'
+    restart: always
+    hostname: 'gitlab.lgrapplications.org'
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab.lgrapplications.org'
+    ports:
+      - '8083:80'
+      - '2222:22'
+    volumes:
+      - /apps/gitlab/data:/var/opt/gitlab
+      - /apps/gitlab/logs:/var/log/gitlab
+      - /apps/gitlab/config:/etc/gitlab
+      
+  sonarqube:
+    image: sonarqube:7.9.2-community
+    restart: unless-stopped
+    environment:
+      - SONARQUBE_JDBC_USERNAME=sonar
+      - SONARQUBE_JDBC_PASSWORD=v07IGCFCF83Z95NX
+      - SONARQUBE_JDBC_URL=jdbc:postgresql://postgresql:5432/sonarqube
+    ports:
+      - "9000:9000"
+      - "9092:9092"
+    volumes:
+      - /apps/sonarqube/conf:/opt/sonarqube/conf
+      - /apps/sonarqube/data:/opt/sonarqube/data
+      - /apps/sonarqube/extensions:/opt/sonarqube/extensions
+      - /apps/sonarqube/bundled-plugins:/opt/sonarqube/lib/bundled-plugins
+
+  postgresql:
+    image: postgres:12.1
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=v07IGCFCF83Z95NX
+      - POSTGRES_DB=sonarqube
+    volumes:
+      - /apps/postgresql:/var/lib/postgresql
+      # This needs explicit mapping due to https://github.com/docker-library/postgres/blob/4e48e3228a30763913ece952c611e5e9b95c8759/Dockerfile.template#L52
+      - /apps/postgresql/data:/var/lib/postgresql/data
+
+
+networks:
+  lgrapplications-network:
+    driver: bridge
+
+
+      
+      
